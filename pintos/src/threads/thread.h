@@ -143,6 +143,5 @@ struct sortNumber {
     int number;
     struct list_elem elem;
 };
-
 static bool compare(const struct list_elem *elem1, const struct list_elem *elem2, void*aux); 
 #endif /* threads/thread.h */

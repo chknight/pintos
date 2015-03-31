@@ -209,8 +209,8 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
-
-  return tid;
+  thread_yield ();
+	return tid;
 }
 
 /* Puts the current thread to sleep.  It will not be scheduled
@@ -344,7 +344,10 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  thread_current ()->priority = new_priority;
+	if (new_priority > PRI_MAX || new_priority < PRI_MIN)
+		return;
+  thread_current()->priority = new_priority;
+  thread_yield ();
 }
 
 /* Returns the current thread's priority. */
@@ -556,6 +559,7 @@ thread_schedule_tail (struct thread *prev)
 static void
 schedule (void) 
 {
+	enum intr_level old_level = intr_disable();
   struct thread *cur = running_thread ();
   struct thread *next = next_thread_to_run ();
   struct thread *prev = NULL;
@@ -567,6 +571,7 @@ schedule (void)
   if (cur != next)
     prev = switch_threads (cur, next);
   thread_schedule_tail (prev);
+	intr_set_level(old_level);
 }
 
 /* Returns a tid to use for a new thread. */
@@ -592,9 +597,10 @@ compare (const struct list_elem *elem1, const struct list_elem *elem2,void *aux)
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
-void
-threadsetpriority(int new_priority) {
-	enum intr_level old_level = intr_disable();
-
-	intr_set_level(old_level);
-}
+/*void
+thread_set_priority(int new_priority) {
+	if (new_priority > PRI_MAX || new_priority < PRI_MIN)
+		return;
+  thread_current()->priority = new_priority;
+	thread_yield();
+}*/
