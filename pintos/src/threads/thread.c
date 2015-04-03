@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <random.h>
 #include <stdio.h>
+#include <list.h>
 #include <string.h>
 #include "threads/flags.h"
 #include "threads/interrupt.h"
@@ -199,7 +200,8 @@ thread_create (const char *name, int priority,
   ef = alloc_frame (t, sizeof *ef);
   ef->eip = (void (*) (void)) kernel_thread;
 
-  /* Stack frame for switch_threads(). */
+  /* Stack frame for
+	 * switch_threads(). */
   sf = alloc_frame (t, sizeof *sf);
   sf->eip = switch_entry;
   sf->ebp = 0;
@@ -240,14 +242,16 @@ thread_block (void)
 void
 thread_unblock (struct thread *t) 
 {
+	//lock_acquire(&tid_lock);
   enum intr_level old_level;
 
   ASSERT (is_thread (t));
 
   old_level = intr_disable ();
-  ASSERT (t->status == THREAD_BLOCKED);
+	ASSERT (t->status == THREAD_BLOCKED);
   list_insert_ordered (&ready_list, &t->elem, compare, NULL);
   t->status = THREAD_READY;
+	//lock_release(&tid_lock);
   intr_set_level (old_level);
 }
 
@@ -344,9 +348,14 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
+	struct thread* current = thread_current();
+	//enum intr_level old_level = intr_disable();
+	lock_acquire (&tid_lock);
 	if (new_priority > PRI_MAX || new_priority < PRI_MIN)
 		return;
   thread_current()->priority = new_priority;
+  //intr_set_level(old_level);
+	lock_release (&tid_lock);
   thread_yield ();
 }
 
@@ -538,7 +547,7 @@ thread_schedule_tail (struct thread *prev)
 #endif
 
   /* If the thread we switched from is dying, destroy its struct
-     thread.  This must happen late so that thread_exit() doesn't
+     thread.  This must happen late so that thread_exit() doesn'h
      pull out the rug under itself.  (We don't free
      initial_thread because its memory was not obtained via
      palloc().) */
@@ -560,16 +569,24 @@ static void
 schedule (void) 
 {
 	enum intr_level old_level = intr_disable();
+	struct thread *first = list_entry (list_begin(&ready_list), struct thread, allelem);
   struct thread *cur = running_thread ();
-  struct thread *next = next_thread_to_run ();
+  struct thread *next = next_thread_to_run();
   struct thread *prev = NULL;
 
   ASSERT (intr_get_level () == INTR_OFF);
   ASSERT (cur->status != THREAD_RUNNING);
   ASSERT (is_thread (next));
 
-  if (cur != next)
-    prev = switch_threads (cur, next);
+  if (cur != next) {
+		if (cur != first&&first != idle_thread&&is_thread(first)) {
+			prev = switch_threads(cur, first);
+			cur->status = THREAD_READY;
+      list_insert_ordered (&ready_list, &cur->elem, compare, NULL);
+		}
+		else
+      prev = switch_threads (cur, next);
+	}
   thread_schedule_tail (prev);
 	intr_set_level(old_level);
 }
